@@ -3,7 +3,7 @@ module SampleArrays
 using Reexport
 using FileIO
 using DSP
-import DSP: unwrap, unwrap!, resample
+import DSP: unwrap, unwrap!, resample, finddelay, shiftsignal, shiftsignal!
 using FFTW
 import FFTW: rfft, irfft
 using Interpolations
@@ -52,5 +52,28 @@ DSP.unwrap!(Y::AbstractArray{T}, X::AbstractArray{T}; range=2E(pi), kwargs...) w
 DSP.unwrap(X::AbstractSpectrumArray; kwargs...) = invoke(unwrap, Tuple{AbstractArray}, X; dims=1, kwargs...)
 DSP.unwrap(X::AbstractSpectrumArray{<: Complex}; kwargs...) = unwrap(MagPhase.(X))
 DSP.unwrap!(X::AbstractSpectrumArray; kwargs...) = invoke(unwrap!, Tuple{AbstractArray}, X; dims=1, kwargs...)
+
+function DSP.finddelay(x::SampleArray, y::SampleArray)
+    @assert nchannels(x) == 1
+    @assert nchannels(y) == 1
+    finddelay(data(x)[:, 1], data(y)[:, 1])
+end
+
+function DSP.shiftsignal!(x::SampleArray, s::Integer)
+    l = nframes(x)
+    if abs(s) > l
+        error("The absolute value of s must not be greater than the number of frames of x")
+    end
+    if s > 0
+        x[s + 1:l, :] = x[1:l - s, :]
+        x[1:s, :] .= 0
+    elseif s < 0
+        x[1:l + s, :] = x[1 - s:l, :]
+        x[l + s + 1:l, :] .= 0
+    end
+    x
+end
+
+DSP.shiftsignal(x::SampleArray, s::Integer) = shiftsignal!(copy(x), s)
 
 end

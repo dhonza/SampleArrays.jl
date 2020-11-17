@@ -1,4 +1,4 @@
-export AbstractSampleArray, nframes, nchannels, data, rate, domain, toindex, tointerval
+export AbstractSampleArray, nframes, nchannels, data, rate, rateHz, domain, toindex, tointerval
 export AbstractSpectrumArray, nfreqs, data_no0, domain_no0, slice, zerophase, zerophase!
 
 import Base: BroadcastStyle, IndexStyle, getindex, setindex!, show, similar
@@ -12,6 +12,8 @@ nframes(a::AbstractSampleArray) = size(data(a), 1)
 nchannels(a::AbstractSampleArray) = size(data(a), 2)
 data(a::AbstractSampleArray) = a.data
 rate(a::AbstractSampleArray) = a.rate
+
+rateHz(a) = rate(a)*Hz
 
 function domain end
 function toindex end

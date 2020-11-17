@@ -1,6 +1,6 @@
 # ----- SampleArray ---------------------
 
-export SampleArray, toindexdelta
+export SampleArray, toindexdelta, getduration
 
 struct SampleArray{T} <: AbstractSampleArray{T}
     # data::AbstractMatrix{T} # MUCH SLOWER! non-interleaving frames x channels
@@ -12,6 +12,8 @@ SampleArray(x::AbstractMatrix{T}, rate::Frequency) where T = SampleArray{T}(x, t
 SampleArray(x::AbstractVector{T}, rate::Frequency) where T = SampleArray{T}(reshape(x, :, 1), toHz(rate))
 
 domain(x::SampleArray) = range(0, ((nframes(x)-1)/rate(x)); length=nframes(x))
+
+getduration(x::SampleArray) = (nframes(x)/rate(x)) * s
 
 toindex(x::SampleArray{T}, t::Time) where T = round(Int, convert(Float64, tos(t) * rate(x))) + 1   
 toindexdelta(x::SampleArray, t::Int) = t # delta frames
