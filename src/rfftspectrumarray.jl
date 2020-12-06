@@ -5,6 +5,7 @@ struct RFFTSpectrumArray{T} <: AbstractSpectrumArray{T}
     data::Matrix{T} # non-interleaving frequencies x channels
     rate::Float64 # sampling frequency in Hz
     nframes::Union{Int, Nothing} # number of original signal frames or nothing if not known
+    # T should be probably based on Complex or MagPhase only!
 
     function RFFTSpectrumArray{T}(X::Matrix{T}, rate::Float64, nframes::Union{Int, Nothing}) where T
         isnothing(nframes) || (nframes >> 1 + 1 == size(X, 1) || throw(ArgumentError("nframes >> 1 + 1 != size(a, 1)")))
