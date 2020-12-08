@@ -2,6 +2,7 @@ module SampleArrays
 # inspired by SampledSignals
 using Reexport
 using FileIO
+using DataStructures
 using DSP
 import DSP: unwrap, unwrap!, resample, finddelay, shiftsignal, shiftsignal!
 using FFTW

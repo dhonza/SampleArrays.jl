@@ -1,4 +1,4 @@
-@testset "SpectrumArray" begin
+@testset "RFFTSpectrumArray" begin
     sa = SampleArray(rand(6, 2), 10Hz)
     ra = rfft(sa)
     @test irfft(ra) ≈ sa
