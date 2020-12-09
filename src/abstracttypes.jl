@@ -7,7 +7,7 @@ import Base: cat, hcat, vcat, names
 
 # ----- AbstractSampleArray ---------------------
 
-FrameIndex = Union{Colon,AbstractRange,BitArray{1},Vector{Bool},Vector{Int},ClosedInterval{<:Time}}
+FrameIndex = Union{Colon,AbstractRange,BitArray{1},Vector{Bool},Vector{Int},ClosedInterval{<:Time},ClosedInterval{<:Frequency}}
 SingleChannelIndex = Union{Int,Symbol}
 MultipleChannelIndex = Union{Vector{Symbol},ClosedInterval{Symbol},Colon,AbstractRange,Vector{Bool},BitArray{1},Vector{Int}}
 ChannelIndex = Union{SingleChannelIndex, MultipleChannelIndex}
@@ -68,7 +68,7 @@ Base.size(a::AbstractSampleArray, dim...) = size(data(a), dim...)
 
 Base.IndexStyle(::Type{T}) where {T <: AbstractSampleArray} = Base.IndexLinear()
 
-@inline Base.:(==)(a::AbstractSampleArray, b::AbstractSampleArray) = (rate(a) == rate(b)) && (names(a) == names(b)) && (data(a) == data(b))
+@inline Base.:(==)(a::T, b::T) where {T <: AbstractSampleArray} = (rate(a) == rate(b)) && (names(a) == names(b)) && (data(a) == data(b))
 
 @inline toframeidx(::AbstractSampleArray{T}, I) where T = I
 @inline toframeidx(a::AbstractSampleArray{T}, i::Int) where T = toframeidx(a, i:i)
@@ -95,8 +95,16 @@ Base.setindex!(a::AbstractSampleArray{T}, v, i::Int) where T = setindex!(data(a)
 
 Base.BroadcastStyle(::Type{<:AbstractSampleArray}) = Broadcast.ArrayStyle{AbstractSampleArray}()
 
-# redefined in concrete AbstractSampleArray to check for, e.g., common sample rate when broadcasting
-_issaslistcompatible(saslist::Vector{<:AbstractSampleArray}) = true
+function _iscompatible(saslist::Vector{<:AbstractSampleArray})
+    doms = unique(map(domain, saslist))
+    if length(doms) > 1
+        throw(ArgumentError("can't broadcast different domains: $(doms)!"))
+    end
+    rates = unique(map(rate, saslist))
+    if length(rates) > 1
+        throw(ArgumentError("can't broadcast different rates: $(rates)!"))
+    end
+end
 
 function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{T}}, ::Type{ElType}) where {T <: AbstractSampleArray,ElType}
     collectsas(bc::Broadcast.Broadcasted, rest...) = [collectsas(bc.args...)..., collectsas(rest...)...]
@@ -105,7 +113,7 @@ function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{T}}, ::Type
     collectsas() = []
     
     saslist = collectsas(bc)
-    _issaslistcompatible(saslist)
+    _iscompatible(saslist)
     
     dims = length.(axes(bc))
     imax = argmax(map(nchannels, saslist)) # take the one with most channels to get all channel names
@@ -121,17 +129,17 @@ function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{T}}, ::Type
 end
 
 function Base.hcat(X::AbstractSampleArray...) 
-    newnames = _unique_channel_names(X...)
     length(unique(rate.(X))) == 1 || throw(ArgumentError("hcat: non-unique rates!"))
     length(unique(nframes.(X))) == 1 || throw(ArgumentError("hcat: non-unique number of frames!"))
+    newnames = _unique_channel_names(X...)
     data_ = hcat(map(data, X)...)
     return eltype(X)(data_, rate(X[1]), newnames) # eltype gives common supertype
 end
 
 function Base.vcat(X::AbstractSampleArray...)
+    length(unique(rate.(X))) == 1 || throw(ArgumentError("vcat: non-unique rates!"))
     namelists = names.(X)
     length(unique(namelists)) == 1 || throw(ArgumentError("vcat: non-unique channel names!"))
-    length(unique(rate.(X))) == 1 || throw(ArgumentError("vcat: non-unique rates!"))
     data_ = vcat(map(data, X)...)
     return eltype(X)(data_, rate(X[1]), namelists[1])
 end
@@ -143,43 +151,38 @@ end
 # ----- AbstractSpectrumArray ---------------------------
 abstract type AbstractSpectrumArray{T} <: AbstractSampleArray{T} end
 
-nfreqs(X::AbstractSpectrumArray) = size(data(X), 1)
-nchannels(X::AbstractSpectrumArray) = size(data(X), 2)
-data(X::AbstractSpectrumArray) = X.data
-rate(X::AbstractSpectrumArray) = X.rate
-
 # removed DC
 function data_no0 end
 function domain_no0 end
 
-tointerval(X::AbstractSpectrumArray{T}, ti::R) where {T,R <: ClosedInterval{<:Frequency}} = 
-    toindex(X, minimum(ti)):toindex(X, maximum(ti))
+@inline toframeidx(::AbstractSpectrumArray{T}, ::R) where {T, R <: ClosedInterval} = throw(ArgumentError("only Frequency intervals allowed!"))
+@inline toframeidx(X::AbstractSpectrumArray{T}, ti::R) where {T, R <: ClosedInterval{<:Frequency}} = toindex(X, toHz(minimum(ti))):toindex(X, toHz(maximum(ti)))
 
-function Base.getindex(X::AbstractSpectrumArray{T}, ti::R, I) where {T,R <: ClosedInterval{<: Frequency}}
-    r = tointerval(X, ti)
-    SpectrumArray(data(X)[r, I], rate(X), domain(X)[r])
+@inline Base.:(==)(a::T, b::T) where {T <: AbstractSpectrumArray} = (rate(a) == rate(b)) && (names(a) == names(b)) && (domain(a) == domain(b)) && (data(a) == data(b))
+
+function Base.hcat(X::AbstractSpectrumArray...) 
+    length(unique(rate.(X))) == 1 || throw(ArgumentError("hcat: non-unique rates!"))
+    length(unique(nframes.(X))) == 1 || throw(ArgumentError("hcat: non-unique number of frames!"))
+    length(unique(domain.(X))) == 1 || throw(ArgumentError("hcat: non-unique domains!"))
+    newnames = _unique_channel_names(X...)
+    data_ = hcat(map(data, X)...)
+    return eltype(X)(data_, rate(X[1]), domain(X[1]), newnames) # eltype gives common supertype
 end
 
-function _issaslistcompatible(saslist::Vector{<:AbstractSpectrumArray})
-    doms = unique(map(domain, saslist))
-    if length(doms) > 1
-        throw(ArgumentError("can't broadcast different domains: $(doms)!"))
-    end
+function Base.vcat(X::AbstractSpectrumArray...)
+    # union of the frequences must be unique or vcat should fail in array's constructor 
+    length(unique(rate.(X))) == 1 || throw(ArgumentError("vcat: non-unique rates!"))
+    namelists = names.(X)
+    length(unique(namelists)) == 1 || throw(ArgumentError("vcat: non-unique channel names!"))
+    data_ = vcat(map(data, X)...)
+    freqs_ = vcat(map(domain, X)...)
+    return eltype(X)(data_, rate(X[1]), freqs_, namelists[1])
 end
 
-function Base.vcat(X::T...) where {T <: AbstractSpectrumArray}
-    throw(ArgumentError("can't vcat <:AbstractSpectrumArray"))
+function slice(X::AbstractSpectrumArray, f::Frequency)
+    error("missing TEST! is this used anywhere?")
+    data(X)[toindex(X, f), :]
 end
-
-function Base.hcat(X::T...) where {T <: AbstractSpectrumArray}
-    doms = unique(map(domain, X))
-    if length(doms) > 1
-        throw(ArgumentError("can't hcat different domains: $(doms)!"))
-    end
-    invoke(hcat, NTuple{length(X),AbstractArray,}, X...)
-end
-
-slice(X::AbstractSpectrumArray, f::Frequency) = data(X)[toindex(X, f), :]
 
 function zerophase!(X::AbstractSpectrumArray{<:Complex})
     data(X) .= zerophase.(data(X))

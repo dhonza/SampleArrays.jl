@@ -30,6 +30,7 @@ toindex(x::SampleArray{T}, t::Time) where T = round(Int, convert(Float64, tos(t)
 toindexdelta(x::SampleArray, t::Int) = t # delta frames
 toindexdelta(x::SampleArray, t::Time) = round(Int, convert(Float64, tos(t) * rate(x))) # delta time
 
+@inline toframeidx(::SampleArray{T}, ::R) where {T, R <: ClosedInterval} = throw(ArgumentError("only Time intervals allowed!"))
 @inline toframeidx(x::SampleArray{T}, ti::R) where {T, R <: ClosedInterval{<:Time}} = toindex(x, tos(minimum(ti))):toindex(x, tos(maximum(ti)))
 
 # redefined so channel names are treated
@@ -50,15 +51,8 @@ function Base.similar(x::SampleArray, t::Type{T}, dims::Dims) where T
 end
 
 function slice(X::SampleArray, t::Time)
-    error("missing TEST!")
+    error("missing TEST! is this used anywhere?")
     data(X)[toindex(X, t), :]
-end
-
-function _issaslistcompatible(saslist::Vector{<:SampleArray})
-    rates = unique(map(rate, saslist))
-    if length(rates) > 1
-        throw(ArgumentError("can't broadcast different sample rates: $(rates)!"))
-    end
 end
 
 function Base.show(io::IO, ::MIME"text/plain", x::SampleArray{T}) where T
