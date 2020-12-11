@@ -27,16 +27,16 @@ include("spectrumarray.jl")
 include("impexp.jl")
 
 # ----- FFT -----------------------------
-FFTW.rfft(x::SampleArray) = RFFTSpectrumArray(FFTW.rfft(data(x), 1), rate(x), nframes(x))
-FFTW.irfft(X::RFFTSpectrumArray, d::Int) = SampleArray(FFTW.irfft(data(X), d, 1), rate(X))
+FFTW.rfft(x::SampleArray) = RFFTSpectrumArray(FFTW.rfft(data(x), 1), rate(x), nframes(x), names(x))
+FFTW.irfft(X::RFFTSpectrumArray{<:Complex}, d::Int) = SampleArray(FFTW.irfft(data(X), d, 1), rate(X), names(X))
+FFTW.irfft(X::RFFTSpectrumArray{MagPhase{E}}, d::Int) where E = SampleArray(FFTW.irfft(Complex{E}.(data(X)), d, 1), rate(X), names(X))
 function FFTW.irfft(X::RFFTSpectrumArray)
-    d = nframes(X)
+    d = ntimeframes(X)
     isnothing(d) && throw(ArgumentError("the number of original frames d not known, use irfft(a, d)"))
     irfft(X, d)
 end
 
 # ----- UTILS ---------------------------
-
 function DSP.unwrap!(Y::AbstractArray{T}, X::AbstractArray{T}; range=2E(pi), kwargs...) where {E, T <: MagPhase{E}}
     mags = abs.(X)
     phis = unwrap(angle.(X); dims=1, kwargs...)
@@ -63,7 +63,7 @@ end
 function DSP.shiftsignal!(x::SampleArray, s::Integer)
     l = nframes(x)
     if abs(s) > l
-        error("The absolute value of s must not be greater than the number of frames of x")
+        throw(ArgumentError("The absolute value of s must not be greater than the number of frames of x"))
     end
     if s > 0
         x[s + 1:l, :] = x[1:l - s, :]

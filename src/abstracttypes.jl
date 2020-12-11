@@ -25,7 +25,7 @@ names(a::AbstractSampleArray)::Vector{Symbol} = copy(a.names)
 function names!(a::AbstractSampleArray, names::Vector{Symbol})
     _check_channel_names(names)
     if length(names) != nchannels(a)
-        throw(ArgumentError("the number of names given ($(length(names))) does not match the number of channels ($(nchannels(a)))!"))
+        throw(DimensionMismatch("the number of names given ($(length(names))) does not match the number of channels ($(nchannels(a)))!"))
     end
     a.names .= names
 end
@@ -98,7 +98,7 @@ Base.BroadcastStyle(::Type{<:AbstractSampleArray}) = Broadcast.ArrayStyle{Abstra
 function _iscompatible(saslist::Vector{<:AbstractSampleArray})
     doms = unique(map(domain, saslist))
     if length(doms) > 1
-        throw(ArgumentError("can't broadcast different domains: $(doms)!"))
+        throw(DimensionMismatch("can't broadcast different domains: $(doms)!"))
     end
     rates = unique(map(rate, saslist))
     if length(rates) > 1
@@ -145,7 +145,7 @@ function Base.vcat(X::AbstractSampleArray...)
 end
 
 function Base.cat(X::AbstractSampleArray...; dims)
-    throw(MethodError("cat: not implemented for AbstractSampleArray"))
+    throw(ErrorException("cat: not implemented for $(eltype(X))"))
 end
 
 # ----- AbstractSpectrumArray ---------------------------
@@ -159,25 +159,6 @@ function domain_no0 end
 @inline toframeidx(X::AbstractSpectrumArray{T}, ti::R) where {T, R <: ClosedInterval{<:Frequency}} = toindex(X, toHz(minimum(ti))):toindex(X, toHz(maximum(ti)))
 
 @inline Base.:(==)(a::T, b::T) where {T <: AbstractSpectrumArray} = (rate(a) == rate(b)) && (names(a) == names(b)) && (domain(a) == domain(b)) && (data(a) == data(b))
-
-function Base.hcat(X::AbstractSpectrumArray...) 
-    length(unique(rate.(X))) == 1 || throw(ArgumentError("hcat: non-unique rates!"))
-    length(unique(nframes.(X))) == 1 || throw(ArgumentError("hcat: non-unique number of frames!"))
-    length(unique(domain.(X))) == 1 || throw(ArgumentError("hcat: non-unique domains!"))
-    newnames = _unique_channel_names(X...)
-    data_ = hcat(map(data, X)...)
-    return eltype(X)(data_, rate(X[1]), domain(X[1]), newnames) # eltype gives common supertype
-end
-
-function Base.vcat(X::AbstractSpectrumArray...)
-    # union of the frequences must be unique or vcat should fail in array's constructor 
-    length(unique(rate.(X))) == 1 || throw(ArgumentError("vcat: non-unique rates!"))
-    namelists = names.(X)
-    length(unique(namelists)) == 1 || throw(ArgumentError("vcat: non-unique channel names!"))
-    data_ = vcat(map(data, X)...)
-    freqs_ = vcat(map(domain, X)...)
-    return eltype(X)(data_, rate(X[1]), freqs_, namelists[1])
-end
 
 function slice(X::AbstractSpectrumArray, f::Frequency)
     error("missing TEST! is this used anywhere?")

@@ -10,10 +10,10 @@ struct SpectrumArray{T} <: AbstractSpectrumArray{T} # TODO complete implemetatio
 
     function SpectrumArray{T}(data::Matrix{T}, rate::Float64, freqs::Vector{Float64}, names::Vector{Symbol}) where T
         if length(freqs) != size(data, 1)
-            throw(ArgumentError("data size $(size(data, 1)) does not match the number of frequencies $(length(freqs))"))
+            throw(DimensionMismatch("data size $(size(data, 1)) does not match the number of frequencies $(length(freqs))"))
         end
         _check_channel_names(names)
-        length(names) == size(data, 2) || throw(ArgumentError("the number of names ($(length(names))) does not match the number of channels ($(size(data, 2)))!"))
+        length(names) == size(data, 2) || throw(DimensionMismatch("the number of names ($(length(names))) does not match the number of channels ($(size(data, 2)))!"))
         length(unique(freqs)) == length(freqs) || throw(ArgumentError("non-unique freqs!"))
         new(data, rate, freqs, copy(names))
     end
@@ -44,13 +44,13 @@ function Base.similar(X::SpectrumArray, t::Type{T}, dims::Dims, freqs::AbstractV
     # if there are fever names in the source array use default ones
     # TODO: move to abstracttypes.jl?
     # println("SIMILAR $(dims[2]) $(nchannels(x))")
-    dims[1] != length(freqs) && throw(ArgumentError("the number of frequencies/frames ($(length(freqs))) does not match the target dimension ($(dims[1]))!"))
+    dims[1] != length(freqs) && throw(DimensionMismatch("the number of frequencies/frames ($(length(freqs))) does not match the target dimension ($(dims[1]))!"))
     ns = dims[2] ≤ nchannels(X) ? X.names[1:dims[2]] : _default_channel_names(dims[2])
     SpectrumArray(similar(data(X), t, dims), rate(X), freqs, ns)
 end
 
 function Base.similar(X::SpectrumArray, t::Type{T}, dims::Dims) where T
-    dims[1] != nframes(X) && throw(ArgumentError("the number of frequencies/frames of source array ($(nframes(X))) does not match the target dimension ($(dims[1]))! You may want to use: similar(X, t, dims, freqs)."))
+    dims[1] != nframes(X) && throw(DimensionMismatch("the number of frequencies/frames of source array ($(nframes(X))) does not match the target dimension ($(dims[1]))! You may want to use: similar(X, t, dims, freqs)."))
     similar(X, t, dims, domain(X))
 end
 
@@ -66,10 +66,29 @@ end
 
 Base.getindex(X::SpectrumArray{T}, I::R) where {T, R <: FrameIndex} = X[I, :]
 
+function Base.hcat(X::SpectrumArray...) 
+    length(unique(rate.(X))) == 1 || throw(ArgumentError("hcat: non-unique rates!"))
+    length(unique(nframes.(X))) == 1 || throw(DimensionMismatch("hcat: non-unique number of frames!"))
+    length(unique(domain.(X))) == 1 || throw(ArgumentError("hcat: non-unique domains!"))
+    newnames = _unique_channel_names(X...)
+    data_ = hcat(map(data, X)...)
+    return eltype(X)(data_, rate(X[1]), domain(X[1]), newnames) # eltype gives common supertype
+end
+
+function Base.vcat(X::SpectrumArray...)
+    # union of the frequences must be unique or vcat should fail in array's constructor 
+    length(unique(rate.(X))) == 1 || throw(ArgumentError("vcat: non-unique rates!"))
+    namelists = names.(X)
+    length(unique(namelists)) == 1 || throw(ArgumentError("vcat: non-unique channel names!"))
+    data_ = vcat(map(data, X)...)
+    freqs_ = vcat(map(domain, X)...)
+    return eltype(X)(data_, rate(X[1]), freqs_, namelists[1])
+end
+
 function Base.show(io::IO, ::MIME"text/plain", X::SpectrumArray{T}) where T
     d = domain(X)
     clist = join([":$(n)" for n in names(X)], ", ")
-    print(io, "SpectrumArray{$T}: $(nchannels(X)) channels: $(clist)\n: $(nframes(X)) freqs $(first(d)) - $(last(d)) Hz, sampled at $(rate(X)) Hz:\n ")
+    print(io, "SpectrumArray{$T}: $(nchannels(X)) channels: $(clist)\n $(nframes(X)) freqs $(first(d)) - $(last(d)) Hz, sampled at $(rate(X)) Hz:\n ")
     print(io, data(X))
 end
 

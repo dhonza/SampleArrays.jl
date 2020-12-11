@@ -15,26 +15,26 @@
     
     sa = SpectrumArray(rand(6, 1), 10, [0Hz, 1Hz, 2Hz, 3Hz, 4Hz, 5Hz])
     sb = SpectrumArray(rand(6, 2), 10Hz, [0Hz, 1Hz, 2Hz, 3Hz, 4Hz, 5Hz])
-    sc = SpectrumArray(rand(6, 2), 32Hz, [0Hz, 1Hz, 2Hz, 4Hz, 8Hz, 16Hz])
+    sc = SpectrumArray(rand(Float32, 6, 2), 32Hz, [0Hz, 1Hz, 2Hz, 4Hz, 8Hz, 16Hz])
     sd = SpectrumArray(rand(Complex{Float64}, 6, 2), 32Hz, [0Hz, 1Hz, 2Hz, 4Hz, 8Hz, 16Hz])
     se = SpectrumArray([float(j) for i in 1:16, j in 1:8], 44100Hz,
         [0Hz, ((2^i)Hz for i in 0:14)...],
         [:front_left, :front_right, :rear_left, :rear_right, 
             :front_center, :lfe, :side_left, :side_right])
-    sf = SpectrumArray([float(j) for i in 1:16, j in 1:8], 44100Hz,
-            [0Hz, ((2^i)Hz for i in 0:14)...],
-            [:front_left, :front_right, :rear_left, :rear_right, 
-                :front_center, :lfe, :side_left, :side_right])    
-    sg = copy(sf)
-    sh = SpectrumArray(rand(6, 2), 32Hz, [0.5Hz, 1.5Hz, 2.5Hz, 4.5Hz, 7.5Hz, 15.5Hz])
+    sf = copy(se)
+    sg = SpectrumArray(rand(6, 2), 32Hz, [0.5Hz, 1.5Hz, 2.5Hz, 4.5Hz, 7.5Hz, 15.5Hz])
 
-    @test sf == sg
-    @test sf !== sg
-    @test cmparrays(sf, sg)
+    @test se == sf
+    @test se !== sf
+    @test cmparrays(se, sf)
     @test_throws ArgumentError SpectrumArray(rand(6, 1), 10, [0Hz, 1Hz, 2Hz, 3Hz, 4Hz, 2Hz]) # non-unique freqs
 
+    @test_throws DimensionMismatch SpectrumArray(rand(6, 2), 10Hz, [0Hz, 1Hz, 2Hz, 3Hz, 4Hz, 5Hz], [:left, :right, :onemore])
+    
     @testset "basic functions" begin
         @test domain(sa) == collect(0.0:1:5)
+        @test domain_no0(sa) == collect(1.0:1:5)
+        @test data_no0(sa) == data(sa)[2:end, :]
         @test nchannels(sa) == 1
         @test nframes(sa) == 6
         @test rate(sa) == 10.0
@@ -55,7 +55,7 @@
         @test_throws ArgumentError names!(sb2, [:same, :same]) # non unique name
         @test cmparrays(sb, sb2; names_=[:left, :right])
         names!(sc, [:left, :right])
-        @test cmparrays(sb2, sc; rate_=32.0, domain_=nothing, data_=nothing)
+        @test cmparrays(sb2, sc; rate_=32.0, domain_=nothing, data_=nothing, eltype_=Float32, typeof_=SpectrumArray{Float32})
         names!(sb2, [:RIGHT, :LEFT], [:right, :left])
         @test cmparrays(sb, sb2; names_=[:LEFT, :RIGHT])
     end
@@ -184,16 +184,16 @@
         
         @test_throws ArgumentError vcat(sc, sc)
         
-        names!(sh, names(sc))
-        sh2 = vcat(sc, sh)
-        @test cmparrays(sc, sh2[1:6, :])
-        @test cmparrays(sh, sh2[7:end, :])
-        names!(sh, [:L, :R])
-        @test_throws ArgumentError vcat(sc, sh) # non-unique channel names
+        names!(sg, names(sc))
+        sg2 = vcat(sc, sg)
+        @test cmparrays(sc, sg2[1:6, :], eltype_=Float64, typeof_=SpectrumArray{Float64})
+        @test cmparrays(sg, sg2[7:end, :])
+        names!(sg, [:L, :R])
+        @test_throws ArgumentError vcat(sc, sg) # non-unique channel names
         @test_throws ArgumentError vcat(sa, sc) # non-unique rates
         @test_throws ArgumentError vcat(sc, sc) # non-unique freqs
         
-        @test_throws MethodError cat(sa, sa; dims=1)
+        @test_throws ErrorException cat(sa, sa; dims=1)
     end
     
     @testset "phase" begin

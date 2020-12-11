@@ -21,7 +21,7 @@
             :front_left, :front_right, :rear_left, :rear_right, 
             :front_center, :lfe, :side_left, :side_right])
     
-    @test_throws ArgumentError SampleArray(rand(3, 2), 1Hz, [:center])
+    @test_throws DimensionMismatch SampleArray(rand(3, 2), 1Hz, [:center])
     @test_throws ArgumentError SampleArray(rand(3, 2), 1Hz, [:center, :center])
     
     @test cmparrays(sb, sc)
@@ -202,6 +202,6 @@
         sc2 = vcat(sc, Float32.(sc))
         @test data(sc2) ≈ vcat(data(sc), data(sc))
         @test_throws ArgumentError vcat(sa, sc)
-        @test_throws MethodError cat(sa, sa; dims=1)
+        @test_throws ErrorException cat(sa, sa; dims=1)
     end
 end

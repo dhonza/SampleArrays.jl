@@ -10,7 +10,7 @@ struct SampleArray{T} <: AbstractSampleArray{T}
 
     function SampleArray{T}(data::Matrix{T}, rate::Float64, names::Vector{Symbol}) where T
         _check_channel_names(names)
-        length(names) == size(data, 2) || throw(ArgumentError("the number of names ($(length(names))) does not match the number of channels ($(size(data, 2)))!"))
+        length(names) == size(data, 2) || throw(DimensionMismatch("the number of names ($(length(names))) does not match the number of channels ($(size(data, 2)))!"))
         n = new(data, rate, copy(names))
     end
 end
