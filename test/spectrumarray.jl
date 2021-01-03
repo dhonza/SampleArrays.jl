@@ -13,7 +13,7 @@
         true
     end
     
-    sa = SpectrumArray(rand(6, 1), 10, [0Hz, 1Hz, 2Hz, 3Hz, 4Hz, 5Hz])
+    sa = SpectrumArray(rand(6, 1), 10, 0Hz:1Hz:5Hz)
     sb = SpectrumArray(rand(6, 2), 10Hz, [0Hz, 1Hz, 2Hz, 3Hz, 4Hz, 5Hz])
     sc = SpectrumArray(rand(Float32, 6, 2), 32Hz, [0Hz, 1Hz, 2Hz, 4Hz, 8Hz, 16Hz])
     sd = SpectrumArray(rand(Complex{Float64}, 6, 2), 32Hz, [0Hz, 1Hz, 2Hz, 4Hz, 8Hz, 16Hz])
@@ -40,7 +40,7 @@
         @test rate(sa) == 10.0
         @test rate(sc) == 32.0
         @test eltype(sa) == Float64
-        @test cmparrays(sa, sb, nchannels_=2, names_=[Symbol(1), Symbol(2)], data_=nothing)
+        @test cmparrays(sa, sb, nchannels_=2, names_=[Symbol(1), Symbol(2)], data_=nothing, typeof_=SpectrumArray{Float64,Vector{Float64}})
         @test names(se) == [:front_left, :front_right, :rear_left, :rear_right, 
             :front_center, :lfe, :side_left, :side_right]
         
@@ -55,7 +55,7 @@
         @test_throws ArgumentError names!(sb2, [:same, :same]) # non unique name
         @test cmparrays(sb, sb2; names_=[:left, :right])
         names!(sc, [:left, :right])
-        @test cmparrays(sb2, sc; rate_=32.0, domain_=nothing, data_=nothing, eltype_=Float32, typeof_=SpectrumArray{Float32})
+        @test cmparrays(sb2, sc; rate_=32.0, domain_=nothing, data_=nothing, eltype_=Float32, typeof_=SpectrumArray{Float32,Vector{Float64}})
         names!(sb2, [:RIGHT, :LEFT], [:right, :left])
         @test cmparrays(sb, sb2; names_=[:LEFT, :RIGHT])
     end
@@ -142,10 +142,10 @@
     
     @testset "similar" begin
         @test cmparrays(sb, similar(sb); data_=nothing)
-        @test cmparrays(sb, similar(sb, Float32); data_=nothing, eltype_=Float32, typeof_=SpectrumArray{Float32})
+        @test cmparrays(sb, similar(sb, Float32); data_=nothing, eltype_=Float32, typeof_=SpectrumArray{Float32,Vector{Float64}})
         @test cmparrays(sb, similar(sb, eltype(sb), (10, 2), collect(1:1:10)); domain_=nothing, nframes_=10, data_=nothing)
         @test cmparrays(sb, similar(sb, Float32, (10, 2), collect(1:1:10)); domain_=nothing, nframes_=10, 
-            data_=nothing, eltype_=Float32, typeof_=SpectrumArray{Float32})
+            data_=nothing, eltype_=Float32, typeof_=SpectrumArray{Float32,Vector{Float64}})
         names!(sb, [:left, :right])
         @test cmparrays(sb, similar(sb, Float64, (10, 1), collect(1:1:10)); domain_=nothing, nframes_=10, data_=nothing, nchannels_=1, names_=[:left])
         @test cmparrays(sb, similar(sb, Float64, (10, 3), collect(1:1:10)); domain_=nothing, nframes_=10, data_=nothing, 
@@ -186,7 +186,7 @@
         
         names!(sg, names(sc))
         sg2 = vcat(sc, sg)
-        @test cmparrays(sc, sg2[1:6, :], eltype_=Float64, typeof_=SpectrumArray{Float64})
+        @test cmparrays(sc, sg2[1:6, :], eltype_=Float64, typeof_=SpectrumArray{Float64,Vector{Float64}})
         @test cmparrays(sg, sg2[7:end, :])
         names!(sg, [:L, :R])
         @test_throws ArgumentError vcat(sc, sg) # non-unique channel names

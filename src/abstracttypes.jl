@@ -1,6 +1,6 @@
 export AbstractSampleArray, nframes, nchannels, data, rate, rateHz, domain
 export names, names!
-export AbstractSpectrumArray, nfreqs, data_no0, domain_no0, slice, zerophase, zerophase!
+export AbstractSpectrumArray, nfreqs, data_no0, domain_no0, slice, zerophase, zerophase!, delay, delay!
 
 import Base: BroadcastStyle, IndexStyle, getindex, setindex!, show, similar, to_index, to_indices, ==
 import Base: cat, hcat, vcat, names
@@ -120,7 +120,7 @@ function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{T}}, ::Type
     a = saslist[imax]
     sim = similar(a, ElType, dims)
     for o in saslist
-        if o.names != a.names[1:nchannels(o)]
+        if names(o) != names(a)[1:nchannels(o)]
             names!(sim, _default_channel_names(nchannels(a)))
             break
         end
@@ -170,4 +170,12 @@ function zerophase!(X::AbstractSpectrumArray{<:Complex})
     X
 end
 
-zerophase(a) = zerophase!(deepcopy(a)) 
+zerophase(a) = zerophase!(deepcopy(a))
+
+function delay(X::AbstractSpectrumArray{T}, Δt::Time) where T
+    T.(MagPhase.(abs.(X), angle.(X) .- 2π .* domain(X) .* tos(Δt)))
+end
+
+function delay!(X::AbstractSpectrumArray, shift)
+    X .= delay(X, shift)
+end

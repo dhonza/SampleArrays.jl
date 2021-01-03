@@ -1,33 +1,34 @@
-export SpectrumArray, tologfreq
+export SpectrumArray, SpectrumDomain, tologfreq
 
 # ----- SpectrumArray ---------------------------
+const SpectrumDomain = Union{AbstractVector{<:Frequency}, AbstractRange{<:Frequency}}
+const SpectrumDomainReal = Union{AbstractVector{<:Real}, AbstractRange{<:Real}}
 
-struct SpectrumArray{T} <: AbstractSpectrumArray{T} # TODO complete implemetation!
+struct SpectrumArray{T,F<:SpectrumDomainReal} <: AbstractSpectrumArray{T}
     data::Matrix{T} # non-interleaving frequencies x channels
     rate::Float64 # original sampling rate
-    freqs::Vector{Float64}
+    freqs::F # in Hz
     names::Vector{Symbol}
 
-    function SpectrumArray{T}(data::Matrix{T}, rate::Float64, freqs::Vector{Float64}, names::Vector{Symbol}) where T
+    function SpectrumArray{T,F}(data::Matrix{T}, rate::Float64, freqs::F, names::Vector{Symbol}) where {T,F}
         if length(freqs) != size(data, 1)
             throw(DimensionMismatch("data size $(size(data, 1)) does not match the number of frequencies $(length(freqs))"))
         end
         _check_channel_names(names)
         length(names) == size(data, 2) || throw(DimensionMismatch("the number of names ($(length(names))) does not match the number of channels ($(size(data, 2)))!"))
         length(unique(freqs)) == length(freqs) || throw(ArgumentError("non-unique freqs!"))
-        new(data, rate, freqs, copy(names))
+        new{T,F}(data, rate, freqs, copy(names))
     end
 end
 
-SpectrumArray(X::AbstractMatrix{T}, rate::Frequency, freqs::AbstractVector{<:Frequency}, names::Vector{Symbol}) where T = 
-    SpectrumArray{T}(X, toHz(rate), Float64.(toHz.(freqs)), names)
-SpectrumArray(X::AbstractMatrix{T}, rate::Frequency, freqs::AbstractVector{<:Frequency}) where T = 
-    SpectrumArray{T}(X, toHz(rate), Float64.(toHz.(freqs)),  _default_channel_names(size(X, 2)))
+function SpectrumArray(X::AbstractMatrix{T}, rate::Frequency, freqs::SpectrumDomain, names::Union{Nothing,Vector{Symbol}}=nothing) where {T}
+    freqs_ = toHz(freqs)
+    F = typeof(freqs_)
+    SpectrumArray{T,F}(X, toHz(rate), freqs_, isnothing(names) ? _default_channel_names(size(X, 2)) : names)
+end
 
-SpectrumArray(X::AbstractVector{T}, rate::Frequency, freqs::AbstractVector{<:Frequency}, names::Vector{Symbol}) where T = 
-    SpectrumArray{T}(reshape(X, :, 1), toHz(rate), Float64.(toHz.(freqs)), names)
-SpectrumArray(X::AbstractVector{T}, rate::Frequency, freqs::AbstractVector{<:Frequency}) where T = 
-    SpectrumArray{T}(reshape(X, :, 1), toHz(rate), Float64.(toHz.(freqs)), _default_channel_names(1))
+SpectrumArray(X::AbstractVector{T}, rate::Frequency, freqs::F, names::Union{Nothing,Vector{Symbol}}=nothing) where {T, F<:SpectrumDomain} = 
+    SpectrumArray(reshape(X, :, 1), rate, freqs, names)
 
 domain(X::SpectrumArray) = X.freqs
 _findno0freqs(X::SpectrumArray) = findall(!iszero, domain(X))
@@ -39,7 +40,7 @@ function toindex(X::SpectrumArray{T}, t::Frequency) where T
     findmin(diffs)[2]
 end
 
-function Base.similar(X::SpectrumArray, t::Type{T}, dims::Dims, freqs::AbstractVector{<:Frequency}) where T
+function Base.similar(X::SpectrumArray, t::Type{T}, dims::Dims, freqs::SpectrumDomain) where T
     # tries to copy channel names
     # if there are fever names in the source array use default ones
     # TODO: move to abstracttypes.jl?
@@ -55,13 +56,13 @@ function Base.similar(X::SpectrumArray, t::Type{T}, dims::Dims) where T
 end
 
 # redefined so frequencies & channel names are treated
-function Base.getindex(X::SpectrumArray{T}, I::R, J::S) where {T, R <: FrameIndex, S <: ChannelIndex}
+function Base.getindex(X::SpectrumArray{T,F}, I::R, J::S) where {T, F, R <: FrameIndex, S <: ChannelIndex}
     I2 = toframeidx(X, I)
     J2 = tochannelidx(X, J)
     freqs_ = domain(X)[I2]
     names_ = names(X)[J2]
     data_ = data(X)[I2, J2]
-    SpectrumArray{T}(data_, rate(X), freqs_, names_)
+    SpectrumArray{T,F}(data_, rate(X), freqs_, names_)
 end
 
 Base.getindex(X::SpectrumArray{T}, I::R) where {T, R <: FrameIndex} = X[I, :]
@@ -72,7 +73,9 @@ function Base.hcat(X::SpectrumArray...)
     length(unique(domain.(X))) == 1 || throw(ArgumentError("hcat: non-unique domains!"))
     newnames = _unique_channel_names(X...)
     data_ = hcat(map(data, X)...)
-    return eltype(X)(data_, rate(X[1]), domain(X[1]), newnames) # eltype gives common supertype
+    rate_ = rate(X[1])
+    domain_ = domain(X[1]) 
+    return SpectrumArray{eltype(data_),typeof(domain_)}(data_, rate_, domain_, newnames) # eltype gives common supertype
 end
 
 function Base.vcat(X::SpectrumArray...)
@@ -82,7 +85,7 @@ function Base.vcat(X::SpectrumArray...)
     length(unique(namelists)) == 1 || throw(ArgumentError("vcat: non-unique channel names!"))
     data_ = vcat(map(data, X)...)
     freqs_ = vcat(map(domain, X)...)
-    return eltype(X)(data_, rate(X[1]), freqs_, namelists[1])
+    return SpectrumArray{eltype(data_),typeof(freqs_)}(data_, rate(X[1]), freqs_, namelists[1])
 end
 
 function Base.show(io::IO, ::MIME"text/plain", X::SpectrumArray{T}) where T

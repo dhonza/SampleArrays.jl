@@ -12,9 +12,9 @@ using Interpolations
 using Unitful
 using Unitful: ns, ms, µs, s, Hz, kHz, MHz, GHz, THz
 
-include("magphase.jl")
+include("units.jl")
 
-include("freqtime.jl")
+include("magphase.jl")
 
 include("abstracttypes.jl")
 
@@ -30,11 +30,7 @@ include("impexp.jl")
 FFTW.rfft(x::SampleArray) = RFFTSpectrumArray(FFTW.rfft(data(x), 1), rate(x), nframes(x), names(x))
 FFTW.irfft(X::RFFTSpectrumArray{<:Complex}, d::Int) = SampleArray(FFTW.irfft(data(X), d, 1), rate(X), names(X))
 FFTW.irfft(X::RFFTSpectrumArray{MagPhase{E}}, d::Int) where E = SampleArray(FFTW.irfft(Complex{E}.(data(X)), d, 1), rate(X), names(X))
-function FFTW.irfft(X::RFFTSpectrumArray)
-    d = ntimeframes(X)
-    isnothing(d) && throw(ArgumentError("the number of original frames d not known, use irfft(a, d)"))
-    irfft(X, d)
-end
+FFTW.irfft(X::RFFTSpectrumArray) = irfft(X, ntimeframes(X))
 
 # ----- UTILS ---------------------------
 function DSP.unwrap!(Y::AbstractArray{T}, X::AbstractArray{T}; range=2E(pi), kwargs...) where {E, T <: MagPhase{E}}

@@ -1,6 +1,6 @@
 # ----- SampleArray ---------------------
 
-export SampleArray, getduration
+export SampleArray, getduration, toindexdelta
 
 struct SampleArray{T} <: AbstractSampleArray{T}
     # data::AbstractMatrix{T} # MUCH SLOWER! non-interleaving frames x channels
@@ -15,11 +15,11 @@ struct SampleArray{T} <: AbstractSampleArray{T}
     end
 end
 
-SampleArray(x::AbstractMatrix{T}, rate::Frequency, names::Vector{Symbol}) where T = SampleArray{T}(x, toHz(rate), names)
-SampleArray(x::AbstractMatrix{T}, rate::Frequency) where T = SampleArray{T}(x, toHz(rate), _default_channel_names(size(x, 2)))
+SampleArray(x::AbstractMatrix{T}, rate::Frequency, names::Union{Nothing,Vector{Symbol}}=nothing) where T = 
+    SampleArray{T}(x, toHz(rate), isnothing(names) ? _default_channel_names(size(x, 2)) : names)
 
-SampleArray(x::AbstractVector{T}, rate::Frequency, names::Vector{Symbol}) where T = SampleArray{T}(reshape(x, :, 1), toHz(rate), names)
-SampleArray(x::AbstractVector{T}, rate::Frequency) where T = SampleArray{T}(reshape(x, :, 1), toHz(rate), _default_channel_names(1))
+SampleArray(x::AbstractVector{T}, rate::Frequency, names::Union{Nothing,Vector{Symbol}}=nothing) where T = 
+    SampleArray{T}(reshape(x, :, 1), toHz(rate), isnothing(names) ? _default_channel_names(size(x, 2)) : names)
 
 domain(x::SampleArray) = range(0, ((nframes(x)-1)/rate(x)); length=nframes(x))
 
