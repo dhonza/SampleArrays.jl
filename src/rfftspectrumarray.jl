@@ -18,6 +18,21 @@ end
 RFFTSpectrumArray(X::AbstractMatrix{T}, rate::Frequency, ntimeframes::Integer, names::Union{Nothing,Vector{Symbol}}=nothing) where T = 
     RFFTSpectrumArray{T}(X, toHz(rate), Int(ntimeframes), isnothing(names) ? _default_channel_names(size(X, 2)) : names)
 
+function RFFTSpectrumArray(X::AbstractSpectrumArray{T}, nframes_::Integer, odd::Bool=true, extrapolation_bc=Line()) where T
+    domX = domain(X)
+    domY = range(0, rate(X) / 2; length=nframes_)
+    Xu = unwrap(X)
+    data_old = data(Xu)
+    data_new = Matrix{T}(undef, nframes_, nchannels(X))
+    for i in 1:nchannels(X)
+        mags = LinearInterpolation(domX, abs.(data_old[:, i]); extrapolation_bc=extrapolation_bc)(domY)
+        mags[mags .< 0] .= 0
+        phis = LinearInterpolation(domX, angle.(data_old[:, i]); extrapolation_bc=extrapolation_bc)(domY)
+        data_new[:, i] .= (MagPhase(m, p) for (m, p) in zip(mags, phis))
+    end
+    RFFTSpectrumArray{T}(data_new, rate(X), 2nframes_ - (odd ? 1 : 2), names(X))
+end
+
 ntimeframes(X::RFFTSpectrumArray) = X.ntimeframes
 domain(X::RFFTSpectrumArray) = range(0, rate(X) / 2; length=nframes(X))
 toindex(X::RFFTSpectrumArray{T}, t::Frequency) where T = round(Int, (nframes(X) - 1) * 2toHz(t) / rate(X)) + 1

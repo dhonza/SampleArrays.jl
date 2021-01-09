@@ -48,8 +48,21 @@ function _unique_channel_names(X::AbstractSampleArray...)
     newnames = similar(allnames)
     for (i, name) in enumerate(allnames)
         cnt = ncnt[name]
-        newnames[i] = cnt == 0 ? name : Symbol("$(String(name))_$(cnt+1)")
-        inc!(ncnt, name)     
+        if cnt == 0
+            newnames[i] = name
+            inc!(ncnt, name)
+        else
+            j = 1
+            while true
+                newname = Symbol("$(String(name))_$(cnt+j)")
+                if ncnt[newname] == 0
+                    newnames[i] = newname
+                    inc!(ncnt, newname)
+                    break
+                end
+                j += 1
+            end
+        end
     end
     newnames
 end
