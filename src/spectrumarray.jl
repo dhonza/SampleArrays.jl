@@ -1,4 +1,4 @@
-export SpectrumArray, SpectrumDomain, tologfreq
+export SpectrumArray, SpectrumDomain, unify_domains, tologfreq
 
 # ----- SpectrumArray ---------------------------
 const SpectrumDomain = Union{AbstractVector{<:Frequency}, AbstractRange{<:Frequency}}
@@ -34,6 +34,11 @@ domain(X::SpectrumArray) = X.freqs
 _findno0freqs(X::SpectrumArray) = findall(!iszero, domain(X))
 data_no0(X::SpectrumArray) = @view data(X)[_findno0freqs(X), :] 
 domain_no0(X::SpectrumArray) = @view domain(X)[_findno0freqs(X)]
+
+function unify_domains(Xs::SpectrumArray...)
+    cdom = intersect((Set(domain(X)) for X in Xs)...)
+    [X[[d in cdom for d in domain(X)],:] for X in Xs]
+end
 
 function toindex(X::SpectrumArray{T}, t::Frequency) where T
     diffs = abs.(domain(X) .- toHz(t))
